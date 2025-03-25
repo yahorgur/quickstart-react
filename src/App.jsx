@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 
 import ActiveCallDetail from "./components/ActiveCallDetail";
-import Button from "./components/base/Button";
+import Form from "./components/base/Form";
 import Vapi from "@vapi-ai/web";
-import { isPublicKeyMissingError } from "./utils";
 
 // Put your Vapi Public Key below.
 const vapi = new Vapi("049cb802-f804-498b-894c-cf38c46bf5de");
@@ -15,9 +14,12 @@ const App = () => {
   const [assistantIsSpeaking, setAssistantIsSpeaking] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(0);
 
+  const [callMessages, setCallMessages] = useState([]);
+
   // hook into Vapi events
   useEffect(() => {
     vapi.on("call-start", () => {
+      setCallMessages([])
       setConnecting(false);
       setConnected(true);
     });
@@ -39,21 +41,27 @@ const App = () => {
       setVolumeLevel(level);
     });
 
+    vapi.on("message", (message) => {
+      if (message.transcriptType == 'final') {
+        setCallMessages(prevItems => [...prevItems, { role: message.role, text: message.transcript}]);
+        console.log(callMessages)
+      }
+    })
+
     vapi.on("error", (error) => {
       console.error(error);
 
       setConnecting(false);
     });
 
-    // we only want this to fire on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // call start handler
-  const startCallInline = () => {
+  const startCallInline = (trackBloodPressure, trackTabletsTaken) => {
     setConnecting(true);
-    vapi.start(assistantOptions);
+    vapi.start(assistantOptions(trackBloodPressure, trackTabletsTaken));
   };
+
   const endCall = () => {
     vapi.stop();
   };
@@ -62,86 +70,81 @@ const App = () => {
     <div
       style={{
         display: "flex",
+        flexDirection: "column",
         width: "100vw",
         height: "100vh",
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: "white"
       }}
     >
       {!connected ? (
-        <Button
-          label="Call Vapi’s Pizza Front Desk"
+        <Form
           onClick={startCallInline}
           isLoading={connecting}
         />
       ) : (
-        <ActiveCallDetail
-          assistantIsSpeaking={assistantIsSpeaking}
-          volumeLevel={volumeLevel}
-          onEndCallClick={endCall}
-        />
+        <ActiveCallDetail callMessages={callMessages} />
       )}
     </div>
   );
 };
 
-const assistantOptions = {
-  name: "Vapi’s Pizza Front Desk",
-  firstMessage: "Vappy’s Pizzeria speaking, how can I help you?",
-  transcriber: {
-    provider: "deepgram",
-    model: "nova-2",
-    language: "en-US",
-  },
-  voice: {
-    provider: "playht",
-    voiceId: "jennifer",
-  },
-  model: {
-    provider: "openai",
-    model: "gpt-4",
-    messages: [
-      {
-        role: "system",
-        content: `You are a voice assistant for Vappy’s Pizzeria, a pizza shop located on the Internet.
+const assistantOptions = (trackBloodPressure, trackTabletsTaken) => {
+  const taskAndGoals = `
+    1. Verify client's identity for HIPAA compliance: "For security purposes, could you please provide your [specific verification information]?"
+    2. Introduce the task:
+      ${trackBloodPressure ? '- Ask if blood pressure has been checked: "Have you checked your blood pressure today?' : ''}
+      ${trackTabletsTaken ? '- Inquire about medication adherence: "Have you taken your prescribed medications today?' : ''}
+    3. If the client responds, proceed based on their answers:
+      ${trackBloodPressure ? '- Confirm checked client blood pressure today.' : ''}
+      ${trackTabletsTaken ? '- Confirm taken client prescribed medications today' : ''}      
+      - Wish a wonderful day and end the call.
+  `;
 
-Your job is to take the order of customers calling in. The menu has only 3 types
-of items: pizza, sides, and drinks. There are no other types of items on the menu.
+  return {
+    name: "Health checker",
+    firstMessage: "Good Morning. How are you today?",
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2",
+      language: "en-US",
+    },
+    voice: {
+      provider: "playht",
+      voiceId: "jennifer",
+    },
+    model: {
+      provider: "openai",
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are Robin, a healthcare coordination voice assistant.
+          You are responsible for proactively reaching out to patients to assist with medical appointments, answer health questions, provide pre-visit guidance, facilitate prescription refills, and coordinate care, all while maintaining HIPAA compliance.
 
-1) There are 3 kinds of pizza: cheese pizza, pepperoni pizza, and vegetarian pizza
-(often called "veggie" pizza).
-2) There are 3 kinds of sides: french fries, garlic bread, and chicken wings.
-3) There are 2 kinds of drinks: soda, and water. (if a customer asks for a
-brand name like "coca cola", just let them know that we only offer "soda")
-
-Customers can only order 1 of each item. If a customer tries to order more
-than 1 item within each category, politely inform them that only 1 item per
-category may be ordered.
-
-Customers must order 1 item from at least 1 category to have a complete order.
-They can order just a pizza, or just a side, or just a drink.
-
-Be sure to introduce the menu items, don't assume that the caller knows what
-is on the menu (most appropriate at the start of the conversation).
-
-If the customer goes off-topic or off-track and talks about anything but the
-process of ordering, politely steer the conversation back to collecting their order.
-
-Once you have all the information you need pertaining to their order, you can
-end the conversation. You can say something like "Awesome, we'll have that ready
-for you in 10-20 minutes." to naturally let the customer know the order has been
-fully communicated.
-
-It is important that you collect the order in an efficient manner (succinct replies
-& direct questions). You only have 1 task here, and it is to collect the customers
-order, then end the conversation.
-
-- Be sure to be kind of funny and witty!
-- Keep all your responses short and simple. Use casual language, phrases like "Umm...", "Well...", and "I mean" are preferred.
-- This is a voice conversation, so keep your responses short, like in a real conversation. Don't ramble for too long.`,
-      },
-    ],
-  },
+          [Style]  
+          - Embrace a compassionate, patient, and reassuring tone.
+          - Use a warm, clear, and natural speaking style with conversational language.
+          - Balance healthcare terminology with accessible explanations.
+          - Project competence without sounding overly clinical.
+          
+          [Response Guidelines]  
+          - Use clear language and avoid unnecessary jargon.
+          - Maintain a calm and reassuring tone.
+          - Provide explicit confirmation for important information.
+          - Prioritize empathy in responses to health-related concerns.
+          
+          [Task & Goals]  
+          ${taskAndGoals}
+          
+          [Error Handling / Fallback]  
+          - If the client's response is unclear, politely ask for clarification: "Could you please repeat that?"
+          - If there is an error or system issue, apologize and provide guidance on alternative steps: "I'm sorry, there seems to be a technical issue. Let me assist you with that in another way.`
+        },
+      ],
+    }
+  };
 };
 
 export default App;
