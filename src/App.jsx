@@ -43,8 +43,11 @@ const App = () => {
 
     vapi.on("message", (message) => {
       if (message.transcriptType == 'final') {
-        setCallMessages(prevItems => [...prevItems, { role: message.role, text: message.transcript}]);
-        console.log(message)
+        setCallMessages(prevItems => [...prevItems, {
+          role: message.role,
+          text: message.transcript,
+        }]);
+
       }
     })
 
