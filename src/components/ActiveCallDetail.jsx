@@ -18,8 +18,21 @@ const ActiveCallDetail = ({ callMessages }) => {
         </div>
       ))}
 
-      <button onClick={restart}>
-
+      <button
+        onClick={restart}
+        style={{
+          backgroundColor: "white",
+          color: "black",
+          border: "2px solid #ddd",
+          borderRadius: "8px",
+          padding: "8px 20px",
+          fontSize: "16px",
+          outline: "none",
+          boxShadow: "0px 4px 8px rgba(0,0,0,0.1)",
+          transition: "all 0.3s ease",
+        }}
+      >
+        Restart the page
       </button>
     </div>
   );
